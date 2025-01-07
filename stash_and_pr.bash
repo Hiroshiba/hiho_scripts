@@ -57,7 +57,7 @@ function stash_and_pr() {
   fi
 
   # 新規ブランチを作成
-  branch_name=$(date +'%Y%m%d-%H%M%S')
+  branch_name="hiho-$(date +'%Y%m%d-%H%M%S')"
   git checkout -b "$branch_name"
 
   git add .
