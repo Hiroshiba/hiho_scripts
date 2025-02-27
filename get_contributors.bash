@@ -113,7 +113,7 @@ function get_contributors() {
 
   # 結果表示
   echo "コミッター一覧:"
-  for AUTHOR in "${!AUTHORS[@]}"; do
+  for AUTHOR in $(printf "%s\n" "${!AUTHORS[@]}" | sort); do
     echo "$AUTHOR"
   done
 }
