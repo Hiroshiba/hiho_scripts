@@ -1,6 +1,6 @@
 # commit Aからcommit Bまでの貢献者リストを取得する
 
-function get_contributors() {
+function hiho_get_contributors() {
   # 必要なコマンドがあるか確認
   if ! command -v git >/dev/null; then
     echo "エラー: gitコマンドが見つかりません。gitコマンドをインストールしてください。" >&2

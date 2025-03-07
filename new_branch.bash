@@ -1,6 +1,6 @@
 # 新しいブランチを作成して、そのブランチに切り替える。
 
-function new_branch() {
+function hiho_new_branch() {
   prefix="${1:-hiho}"
 
   branch_name="${prefix}-$(date +'%Y%m%d-%H%M%S')"

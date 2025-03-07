@@ -1,6 +1,6 @@
 # git remote のうち origin と upstream 以外を削除する
 
-function git_remote_clean() {
+function hiho_git_remote_clean() {
   # 必要なコマンドがあるか確認
   if ! command -v git >/dev/null; then
     echo "エラー: gitコマンドが見つかりません。gitコマンドをインストールしてください。" >&2

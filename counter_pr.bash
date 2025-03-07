@@ -1,6 +1,6 @@
 # 今のブランチの前にあるプルリクエストブランチに対して、カウンタープルリクエストを作成する。
 
-function counter_pr() {
+function hiho_counter_pr() {
   # HEADから過去5回分のコミットを探索し、カウンタープルリクエスト対象のブランチを決定
   attempts=5
   branches=""

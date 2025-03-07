@@ -1,7 +1,7 @@
 # 現在のコミットとupstreamデフォルトブランチとの差分を表示する。
 # 共通の枝分かれcommitを探して、そのcommitからHEADまでの差分を表示する。
 
-function show_diff_with_default_branch() {
+function hiho_show_diff_with_default_branch() {
   # 必要なコマンドがあるか確認
   if ! command -v git >/dev/null; then
     echo "エラー: gitコマンドが見つかりません。gitコマンドをインストールしてください。" >&2

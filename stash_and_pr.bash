@@ -1,7 +1,7 @@
 # 今のGit変更をプルリクエストにする。
 # 途中でgit stashを使う。
 
-function stash_and_pr() {
+function hiho_stash_and_pr() {
   # 必要なコマンドがあるか確認
   if ! command -v git >/dev/null; then
     echo "エラー: gitコマンドが見つかりません。gitコマンドをインストールしてください。" >&2
