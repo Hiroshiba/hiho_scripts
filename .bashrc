@@ -7,6 +7,7 @@ script_dir=$(
   pwd
 )
 
+source "${script_dir}/bash_run.bash"
 source "${script_dir}/counter_pr.bash"
 source "${script_dir}/get_contributors.bash"
 source "${script_dir}/git_remote_clean.bash"
