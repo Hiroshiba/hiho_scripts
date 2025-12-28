@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# プルリクエストのレビュースレッドとコメントを取得する関数
-function hiho_get_pr_review_threads() {
+# プルリクエストの詳細とコメントとレビュースレッドを取得する関数
+function hiho_get_pr_detail_comments_review_threads() {
   # 依存コマンド確認
   if ! command -v gh >/dev/null; then
     echo "エラー: ghコマンドが見つかりません。ghコマンドをインストールしてください。" >&2
@@ -10,7 +10,7 @@ function hiho_get_pr_review_threads() {
 
   # 引数チェック
   if [ $# -ne 3 ]; then
-    echo "使い方: hiho_get_pr_review_threads <owner> <repo> <pr_number>" >&2
+    echo "使い方: hiho_get_pr_detail_comments_review_threads <owner> <repo> <pr_number>" >&2
     return 1
   fi
 
@@ -32,8 +32,12 @@ function hiho_get_pr_review_threads() {
   repository(owner: "${owner}", name: "${repo}") {
     pullRequest(number: ${pr_number}) {
       title
+      author {
+        login
+      }
+      createdAt
       state
-      reviewDecision
+      body
       reviewThreads(first: 50) {
         nodes {
           isResolved
@@ -41,8 +45,9 @@ function hiho_get_pr_review_threads() {
           path
           line
           startLine
-          comments(first: 30) {
+          comments(first: 50) {
             nodes {
+              databaseId
               body
               author {
                 login
@@ -52,8 +57,9 @@ function hiho_get_pr_review_threads() {
           }
         }
       }
-      comments(first: 30) {
+      comments(first: 50) {
         nodes {
+          databaseId
           body
           author {
             login
