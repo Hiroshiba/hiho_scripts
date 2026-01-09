@@ -17,21 +17,20 @@ function hiho_pbcopy_files() {
   local file_count=0
 
   for ext in "$@"; do
-    local files
-    files=$(git ls-files "*.${ext}")
+    local has_files=false
 
-    if [ -z "$files" ]; then
-      echo "エラー: 拡張子 '.${ext}' のファイルがgitリポジトリに見つかりません" >&2
-      continue
-    fi
-
-    while IFS= read -r file; do
+    while IFS= read -r -d '' file; do
+      has_files=true
       output+="========\n"
       output+="File: $file\n"
       output+="========\n\n"
       output+="$(cat "$file")\n\n"
       file_count=$((file_count + 1))
-    done <<< "$files"
+    done < <(git ls-files -z "*.${ext}")
+
+    if [ "$has_files" = false ]; then
+      echo "エラー: 拡張子 '.${ext}' のファイルがgitリポジトリに見つかりません" >&2
+    fi
   done
 
   if [ -z "$output" ]; then
