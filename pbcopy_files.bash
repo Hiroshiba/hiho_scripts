@@ -14,7 +14,7 @@ function hiho_pbcopy_files() {
   fi
 
   local output=""
-  local file_count=0
+  local -a files=()
 
   for pattern in "$@"; do
     local has_files=false
@@ -25,7 +25,7 @@ function hiho_pbcopy_files() {
       output+="File: $file\n"
       output+="========\n\n"
       output+="$(cat "$file")\n\n"
-      file_count=$((file_count + 1))
+      files+=("$file")
     done < <(git ls-files -z "$pattern")
 
     if [ "$has_files" = false ]; then
@@ -52,5 +52,9 @@ function hiho_pbcopy_files() {
   if ! echo -e "$output" | to_clipboard; then
     return 1
   fi
-  echo "${file_count}個のファイルをクリップボードにコピーしました"
+
+  echo "${#files[@]}個のファイルをクリップボードにコピーしました:"
+  for file in "${files[@]}"; do
+    echo "  - $file"
+  done
 }
