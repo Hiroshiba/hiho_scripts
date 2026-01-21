@@ -1,4 +1,4 @@
-# 指定された拡張子のファイル内容をクリップボードにコピーする
+# 指定されたglobパターンに一致するファイル内容をクリップボードにコピーする
 
 function hiho_pbcopy_files() {
   if ! command -v git >/dev/null; then
@@ -7,16 +7,16 @@ function hiho_pbcopy_files() {
   fi
 
   if [ $# -eq 0 ]; then
-    echo "使い方: hiho_pbcopy_files <拡張子> [拡張子2 ...]"
-    echo "例: hiho_pbcopy_files py"
-    echo "例: hiho_pbcopy_files py yaml"
+    echo "使い方: hiho_pbcopy_files <パターン> [パターン2 ...]"
+    echo "例: hiho_pbcopy_files '*.ts'"
+    echo "例: hiho_pbcopy_files 'hoge*.ts' '*test*'"
     return 1
   fi
 
   local output=""
   local file_count=0
 
-  for ext in "$@"; do
+  for pattern in "$@"; do
     local has_files=false
 
     while IFS= read -r -d '' file; do
@@ -26,20 +26,19 @@ function hiho_pbcopy_files() {
       output+="========\n\n"
       output+="$(cat "$file")\n\n"
       file_count=$((file_count + 1))
-    done < <(git ls-files -z "*.${ext}")
+    done < <(git ls-files -z "$pattern")
 
     if [ "$has_files" = false ]; then
-      echo "エラー: 拡張子 '.${ext}' のファイルがgitリポジトリに見つかりません" >&2
+      echo "エラー: パターン '${pattern}' に一致するファイルがgitリポジトリに見つかりません" >&2
     fi
   done
 
   if [ -z "$output" ]; then
-    echo "エラー: 指定された拡張子のファイルが見つかりませんでした" >&2
+    echo "エラー: 指定されたパターンに一致するファイルが見つかりませんでした" >&2
     return 1
   fi
-  
+
   function to_clipboard() {
-    # クリップボードコマンドを検出
     if command -v pbcopy >/dev/null; then
       pbcopy
     elif command -v clip.exe >/dev/null; then
