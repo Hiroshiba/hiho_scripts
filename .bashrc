@@ -17,5 +17,6 @@ source "${script_dir}/new_branch.bash"
 source "${script_dir}/pbcopy_files.bash"
 source "${script_dir}/show_diff_with_default_branch.bash"
 source "${script_dir}/stash_and_pr.bash"
+source "${script_dir}/get_github_template.bash"
 
 unset script_dir
