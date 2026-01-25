@@ -53,14 +53,14 @@ function hiho_get_pr_detail_comments_review_threads() {
       createdAt
       state
       body
-      reviewThreads(first: 50) {
+      reviewThreads(first: 100) {
         nodes {
           isResolved
           isOutdated
           path
           line
           startLine
-          comments(first: 50) {
+          comments(first: 100) {
             nodes {
               databaseId
               body
@@ -72,7 +72,7 @@ function hiho_get_pr_detail_comments_review_threads() {
           }
         }
       }
-      comments(first: 50) {
+      comments(first: 100) {
         nodes {
           databaseId
           body
