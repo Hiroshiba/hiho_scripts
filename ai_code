@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""
+git worktreeを作成してClaude Code CLIを起動し、並列でCodexにブランチ名を提案させる
+初期ブランチ名: ai/YYYYMMDD-HHMMSS-ランダム8文字
+Codex提案後: ai/提案名-同じランダム8文字
+"""
 
 import json
 import secrets

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
+# shellcheck disable=SC2139
 
 script_dir=$(
   cd "$(dirname ${BASH_SOURCE:-$0})" || exit
