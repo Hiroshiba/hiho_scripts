@@ -75,114 +75,79 @@ function hiho_get_github_template() {
 
   case "$subcommand" in
     issue)
-      _hiho_get_issue_template "$owner" "$repo" "$template"
+      if [ -z "$template" ]; then
+        local templates
+        if templates=$(gh api "repos/${owner}/${repo}/contents/.github/ISSUE_TEMPLATE" --jq '.[].name' 2>/dev/null) && [ -n "$templates" ]; then
+          echo "Issue テンプレート一覧 (${owner}/${repo}):"
+          echo "$templates"
+          return 0
+        fi
+        if templates=$(gh api "repos/${owner}/.github/contents/.github/ISSUE_TEMPLATE" --jq '.[].name' 2>/dev/null) && [ -n "$templates" ]; then
+          echo "Issue テンプレート一覧 (${owner}/.github):"
+          echo "$templates"
+          return 0
+        fi
+        echo "エラー: Issue テンプレートが見つかりませんでした。" >&2
+        return 1
+      fi
+
+      local content
+      if content=$(gh api "repos/${owner}/${repo}/contents/.github/ISSUE_TEMPLATE/${template}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+        echo "$content" | base64 -d
+        return 0
+      fi
+
+      if content=$(gh api "repos/${owner}/.github/contents/.github/ISSUE_TEMPLATE/${template}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+        echo "$content" | base64 -d
+        return 0
+      fi
+
+      echo "エラー: Issue テンプレート '${template}' が見つかりませんでした。" >&2
+      return 1
       ;;
     pr)
-      _hiho_get_pr_template "$owner" "$repo" "$template"
+      if [ -n "$template" ]; then
+        local content
+        if content=$(gh api "repos/${owner}/${repo}/contents/.github/PULL_REQUEST_TEMPLATE/${template}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+          echo "$content" | base64 -d
+          return 0
+        fi
+
+        if content=$(gh api "repos/${owner}/.github/contents/.github/PULL_REQUEST_TEMPLATE/${template}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+          echo "$content" | base64 -d
+          return 0
+        fi
+
+        echo "エラー: PR テンプレート '${template}' が見つかりませんでした。" >&2
+        return 1
+      fi
+
+      local pr_paths=(
+        ".github/pull_request_template.md"
+        ".github/PULL_REQUEST_TEMPLATE.md"
+        "docs/pull_request_template.md"
+        "docs/PULL_REQUEST_TEMPLATE.md"
+        "pull_request_template.md"
+        "PULL_REQUEST_TEMPLATE.md"
+      )
+
+      local content
+      for path in "${pr_paths[@]}"; do
+        if content=$(gh api "repos/${owner}/${repo}/contents/${path}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+          echo "$content" | base64 -d
+          return 0
+        fi
+      done
+
+      for path in "${pr_paths[@]}"; do
+        if content=$(gh api "repos/${owner}/.github/contents/${path}" --jq '.content' 2>/dev/null) && [ -n "$content" ]; then
+          echo "$content" | base64 -d
+          return 0
+        fi
+      done
+
+      echo "エラー: PR テンプレートが見つかりませんでした。" >&2
+      return 1
       ;;
   esac
-}
-
-function _hiho_gh_api_content() {
-  local api_path="$1"
-  local jq_filter="$2"
-  local result
-  if result=$(gh api "$api_path" --jq "$jq_filter" 2>/dev/null) && [ -n "$result" ]; then
-    echo "$result"
-    return 0
-  fi
-  return 1
-}
-
-function _hiho_get_issue_template() {
-  local owner="$1"
-  local repo="$2"
-  local template="$3"
-
-  if [ -z "$template" ]; then
-    local templates
-    templates=$(_hiho_gh_api_content "repos/${owner}/${repo}/contents/.github/ISSUE_TEMPLATE" '.[].name')
-    if [ -n "$templates" ]; then
-      echo "Issue テンプレート一覧 (${owner}/${repo}):"
-      echo "$templates"
-      return 0
-    fi
-    templates=$(_hiho_gh_api_content "repos/${owner}/.github/contents/.github/ISSUE_TEMPLATE" '.[].name')
-    if [ -n "$templates" ]; then
-      echo "Issue テンプレート一覧 (${owner}/.github):"
-      echo "$templates"
-      return 0
-    fi
-    echo "エラー: Issue テンプレートが見つかりませんでした。" >&2
-    return 1
-  fi
-
-  local content
-  content=$(_hiho_gh_api_content "repos/${owner}/${repo}/contents/.github/ISSUE_TEMPLATE/${template}" '.content')
-  if [ -n "$content" ]; then
-    echo "$content" | base64 -d
-    return 0
-  fi
-
-  content=$(_hiho_gh_api_content "repos/${owner}/.github/contents/.github/ISSUE_TEMPLATE/${template}" '.content')
-  if [ -n "$content" ]; then
-    echo "$content" | base64 -d
-    return 0
-  fi
-
-  echo "エラー: Issue テンプレート '${template}' が見つかりませんでした。" >&2
-  return 1
-}
-
-function _hiho_get_pr_template() {
-  local owner="$1"
-  local repo="$2"
-  local template="$3"
-
-  if [ -n "$template" ]; then
-    local content
-    content=$(_hiho_gh_api_content "repos/${owner}/${repo}/contents/.github/PULL_REQUEST_TEMPLATE/${template}" '.content')
-    if [ -n "$content" ]; then
-      echo "$content" | base64 -d
-      return 0
-    fi
-
-    content=$(_hiho_gh_api_content "repos/${owner}/.github/contents/.github/PULL_REQUEST_TEMPLATE/${template}" '.content')
-    if [ -n "$content" ]; then
-      echo "$content" | base64 -d
-      return 0
-    fi
-
-    echo "エラー: PR テンプレート '${template}' が見つかりませんでした。" >&2
-    return 1
-  fi
-
-  local pr_paths=(
-    ".github/pull_request_template.md"
-    ".github/PULL_REQUEST_TEMPLATE.md"
-    "docs/pull_request_template.md"
-    "docs/PULL_REQUEST_TEMPLATE.md"
-    "pull_request_template.md"
-    "PULL_REQUEST_TEMPLATE.md"
-  )
-
-  local content
-  for path in "${pr_paths[@]}"; do
-    content=$(_hiho_gh_api_content "repos/${owner}/${repo}/contents/${path}" '.content')
-    if [ -n "$content" ]; then
-      echo "$content" | base64 -d
-      return 0
-    fi
-  done
-
-  for path in "${pr_paths[@]}"; do
-    content=$(_hiho_gh_api_content "repos/${owner}/.github/contents/${path}" '.content')
-    if [ -n "$content" ]; then
-      echo "$content" | base64 -d
-      return 0
-    fi
-  done
-
-  echo "エラー: PR テンプレートが見つかりませんでした。" >&2
-  return 1
 }
