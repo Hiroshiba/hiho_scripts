@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+
+import json
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+from datetime import datetime
+from pathlib import Path
+
+
+def main() -> None:
+    CODEX_TIMEOUT = 15
+    RANDOM_SUFFIX_LENGTH = 8
+
+    check_commands()
+
+    prompt = get_prompt()
+
+    if not is_git_repository():
+        print("エラー: gitリポジトリ内で実行してください。", file=sys.stderr)
+        sys.exit(1)
+
+    repo_root = get_repo_root()
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    random_suffix = generate_random_suffix(RANDOM_SUFFIX_LENGTH)
+    initial_branch = f"ai/{timestamp}-{random_suffix}"
+
+    worktrees_dir = Path(f"{repo_root}.worktrees")
+    worktree_path = worktrees_dir / initial_branch
+
+    worktrees_dir.mkdir(parents=True, exist_ok=True)
+    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not create_worktree(str(worktree_path), initial_branch):
+        print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
+        sys.exit(1)
+
+    thread = threading.Thread(
+        target=suggest_branch_name,
+        args=(prompt, random_suffix, str(worktree_path), CODEX_TIMEOUT),
+        daemon=True,
+    )
+    thread.start()
+
+    setup_claude_symlink(repo_root, worktree_path)
+
+    run_claude(prompt, str(worktree_path))
+
+
+def check_commands() -> None:
+    for cmd in ["git", "codex", "claude"]:
+        if not shutil.which(cmd):
+            print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
+            sys.exit(1)
+
+
+def get_prompt() -> str:
+    if len(sys.argv) > 1:
+        prompt = " ".join(sys.argv[1:])
+    elif not sys.stdin.isatty():
+        prompt = sys.stdin.read()
+    else:
+        print("タスクの内容を入力してください (Ctrl+Dで終了):")
+        prompt = sys.stdin.read()
+
+    prompt = prompt.strip()
+
+    if not prompt:
+        print("エラー: プロンプトが空です。", file=sys.stderr)
+        sys.exit(1)
+
+    return prompt
+
+
+def is_git_repository() -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def get_repo_root() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception("リポジトリのルートを取得できませんでした")
+    return result.stdout.strip()
+
+
+def generate_random_suffix(length: int) -> str:
+    alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def create_worktree(worktree_path: str, branch: str) -> bool:
+    result = subprocess.run(
+        ["git", "worktree", "add", worktree_path, "-b", branch],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def suggest_branch_name(
+    prompt: str, random_suffix: str, worktree_path: str, timeout: int
+) -> None:
+    codex_prompt = f"Generate a git branch name for this task: '{prompt}'. Use kebab-case with prefix (feature/fix/refactor/docs/test). Max 50 chars."
+
+    with (
+        tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as output_file,
+        tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as schema_file,
+    ):
+        output_path = output_file.name
+        schema_path = schema_file.name
+
+        schema = {
+            "type": "object",
+            "properties": {"branchName": {"type": "string"}},
+            "required": ["branchName"],
+            "additionalProperties": False,
+        }
+        json.dump(schema, schema_file)
+        schema_file.flush()
+
+        try:
+            result = subprocess.run(
+                [
+                    "codex",
+                    "exec",
+                    "--output-last-message",
+                    output_path,
+                    "--output-schema",
+                    schema_path,
+                    codex_prompt,
+                ],
+                capture_output=True,
+                timeout=timeout,
+            )
+
+            if result.returncode == 0:
+                with open(output_path) as f:
+                    data = json.load(f)
+                    suggested_name = data.get("branchName", "")
+
+                if suggested_name and len(suggested_name) <= 50:
+                    new_branch = f"ai/{suggested_name}-{random_suffix}"
+                    ok = (
+                        subprocess.run(
+                            ["git", "check-ref-format", "--branch", new_branch],
+                            cwd=worktree_path,
+                            capture_output=True,
+                        ).returncode
+                        == 0
+                    )
+                    if ok:
+                        subprocess.run(
+                            ["git", "branch", "-m", new_branch],
+                            cwd=worktree_path,
+                            capture_output=True,
+                        )
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            Path(output_path).unlink(missing_ok=True)
+            Path(schema_path).unlink(missing_ok=True)
+
+
+def setup_claude_symlink(repo_root: str, worktree_path: Path) -> None:
+    claude_dir = Path(repo_root) / ".claude"
+    worktree_claude = worktree_path / ".claude"
+
+    if claude_dir.exists() and not worktree_claude.exists():
+        worktree_claude.symlink_to(claude_dir)
+
+
+def run_claude(prompt: str, worktree_path: str) -> None:
+    subprocess.run(
+        ["claude", "--permission-mode", "acceptEdits", prompt],
+        cwd=worktree_path,
+    )
+
+
+if __name__ == "__main__":
+    main()
