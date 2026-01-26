@@ -19,7 +19,7 @@ source "${script_dir}/pbcopy_files.bash"
 source "${script_dir}/show_diff_with_default_branch.bash"
 source "${script_dir}/stash_and_pr.bash"
 
-alias hiho_ai_code="${script_dir}/ai_code"
-alias hiho_get_github_template="${script_dir}/get_github_template"
+alias hiho_ai_code="${script_dir}/ai_code.py"
+alias hiho_get_github_template="${script_dir}/get_github_template.py"
 
 unset script_dir
