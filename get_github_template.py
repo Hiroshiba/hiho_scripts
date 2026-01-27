@@ -36,6 +36,7 @@ def main() -> None:
 
 
 def get_repo_info(owner: str | None, repo: str | None) -> tuple[str, str]:
+    """gh コマンドでリポジトリの owner と name を取得する"""
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
         capture_output=True,
@@ -64,6 +65,7 @@ def get_repo_info(owner: str | None, repo: str | None) -> tuple[str, str]:
 
 
 def gh_api(path: str) -> dict | list | None:
+    """gh api コマンドを実行して JSON 結果を返す"""
     result = subprocess.run(
         ["gh", "api", path],
         capture_output=True,
@@ -77,10 +79,12 @@ def gh_api(path: str) -> dict | list | None:
 
 
 def decode_content(content: str) -> str:
+    """base64 エンコードされた文字列をデコードする"""
     return base64.b64decode(content).decode("utf-8")
 
 
 def handle_issue_template(owner: str, repo: str, template: str | None) -> None:
+    """Issue テンプレートの取得処理を振り分ける"""
     if not template:
         list_issue_templates(owner, repo)
         return
@@ -89,6 +93,7 @@ def handle_issue_template(owner: str, repo: str, template: str | None) -> None:
 
 
 def list_issue_templates(owner: str, repo: str) -> None:
+    """Issue テンプレート一覧を表示する"""
     templates = gh_api(f"repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE")
     if templates and isinstance(templates, list):
         print(f"Issue テンプレート一覧 ({owner}/{repo}):")
@@ -108,6 +113,7 @@ def list_issue_templates(owner: str, repo: str) -> None:
 
 
 def get_issue_template(owner: str, repo: str, template: str) -> None:
+    """指定した Issue テンプレートの内容を表示する"""
     content_data = gh_api(
         f"repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE/{template}"
     )
@@ -127,6 +133,7 @@ def get_issue_template(owner: str, repo: str, template: str) -> None:
 
 
 def handle_pr_template(owner: str, repo: str, template: str | None) -> None:
+    """PR テンプレートの取得処理を振り分ける"""
     if template:
         get_pr_template_by_name(owner, repo, template)
         return
@@ -135,6 +142,7 @@ def handle_pr_template(owner: str, repo: str, template: str | None) -> None:
 
 
 def get_pr_template_by_name(owner: str, repo: str, template: str) -> None:
+    """指定した PR テンプレートの内容を表示する"""
     content_data = gh_api(
         f"repos/{owner}/{repo}/contents/.github/PULL_REQUEST_TEMPLATE/{template}"
     )
@@ -154,6 +162,7 @@ def get_pr_template_by_name(owner: str, repo: str, template: str) -> None:
 
 
 def get_pr_template_default(owner: str, repo: str) -> None:
+    """デフォルトの PR テンプレートを検索して表示する"""
     pr_paths = [
         ".github/pull_request_template.md",
         ".github/PULL_REQUEST_TEMPLATE.md",

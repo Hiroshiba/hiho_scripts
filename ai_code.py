@@ -56,6 +56,7 @@ def main() -> None:
 
 
 def check_commands() -> None:
+    """必要なコマンドの存在を確認する"""
     for cmd in ["git", "codex", "claude"]:
         if not shutil.which(cmd):
             print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
@@ -63,6 +64,7 @@ def check_commands() -> None:
 
 
 def get_prompt() -> str:
+    """引数または標準入力からプロンプトを取得する"""
     if len(sys.argv) > 1:
         prompt = " ".join(sys.argv[1:])
     elif not sys.stdin.isatty():
@@ -81,6 +83,7 @@ def get_prompt() -> str:
 
 
 def is_git_repository() -> bool:
+    """カレントディレクトリが git リポジトリ内かどうかを判定する"""
     result = subprocess.run(
         ["git", "rev-parse", "--git-dir"],
         capture_output=True,
@@ -89,6 +92,7 @@ def is_git_repository() -> bool:
 
 
 def get_repo_root() -> str:
+    """git リポジトリのルートパスを取得する"""
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
@@ -100,11 +104,13 @@ def get_repo_root() -> str:
 
 
 def generate_random_suffix(length: int) -> str:
+    """指定した長さのランダムな英数字文字列を生成する"""
     alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def create_worktree(worktree_path: str, branch: str) -> bool:
+    """指定したパスに新しいブランチで worktree を作成する"""
     result = subprocess.run(
         ["git", "worktree", "add", worktree_path, "-b", branch],
         capture_output=True,
@@ -115,6 +121,7 @@ def create_worktree(worktree_path: str, branch: str) -> bool:
 def suggest_branch_name(
     prompt: str, random_suffix: str, worktree_path: str, timeout: int
 ) -> None:
+    """codex を使ってブランチ名を提案し、現在のブランチをリネームする"""
     codex_prompt = f"Generate a git branch name for this task: '{prompt}'. Use kebab-case with prefix (feature/fix/refactor/docs/test). Max 50 chars."
 
     with (
@@ -181,6 +188,7 @@ def suggest_branch_name(
 
 
 def setup_claude_symlink(repo_root: str, worktree_path: Path) -> None:
+    """元リポジトリの .claude ディレクトリへのシンボリックリンクを作成する"""
     claude_dir = Path(repo_root) / ".claude"
     worktree_claude = worktree_path / ".claude"
 
@@ -189,6 +197,7 @@ def setup_claude_symlink(repo_root: str, worktree_path: Path) -> None:
 
 
 def run_claude(prompt: str, worktree_path: str) -> None:
+    """Claude Code CLI を起動する"""
     subprocess.run(
         ["claude", "--permission-mode", "acceptEdits", prompt],
         cwd=worktree_path,

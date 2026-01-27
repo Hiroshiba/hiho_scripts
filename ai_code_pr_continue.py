@@ -90,6 +90,7 @@ def main() -> None:
 
 
 def check_commands() -> None:
+    """必要なコマンドの存在を確認する"""
     for cmd in ["git", "gh", "claude"]:
         if not shutil.which(cmd):
             print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
@@ -97,6 +98,7 @@ def check_commands() -> None:
 
 
 def get_prompt() -> str:
+    """引数または標準入力からプロンプトを取得する"""
     if len(sys.argv) > 1:
         prompt = " ".join(sys.argv[1:])
     elif not sys.stdin.isatty():
@@ -115,6 +117,7 @@ def get_prompt() -> str:
 
 
 def is_git_repository() -> bool:
+    """カレントディレクトリが git リポジトリ内かどうかを判定する"""
     result = subprocess.run(
         ["git", "rev-parse", "--git-dir"],
         capture_output=True,
@@ -123,6 +126,7 @@ def is_git_repository() -> bool:
 
 
 def get_current_org_repo() -> tuple[str, str]:
+    """現在のリポジトリの org と repo を取得する"""
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
         capture_output=True,
@@ -136,6 +140,7 @@ def get_current_org_repo() -> tuple[str, str]:
 
 
 def get_pr_author(pr_number: int) -> str:
+    """PR の作者を取得する"""
     result = subprocess.run(
         ["gh", "pr", "view", str(pr_number), "--json", "author"],
         capture_output=True,
@@ -149,6 +154,7 @@ def get_pr_author(pr_number: int) -> str:
 
 
 def get_current_user() -> str:
+    """現在の GitHub ユーザー名を取得する"""
     result = subprocess.run(
         ["gh", "api", "user", "--jq", ".login"],
         capture_output=True,
@@ -161,6 +167,7 @@ def get_current_user() -> str:
 
 
 def get_pr_branch(pr_number: int) -> str | None:
+    """PR のブランチ名を取得する"""
     result = subprocess.run(
         ["gh", "pr", "view", str(pr_number), "--json", "headRefName"],
         capture_output=True,
@@ -174,6 +181,7 @@ def get_pr_branch(pr_number: int) -> str | None:
 
 
 def find_local_branch_for_remote(remote_branch: str) -> str | None:
+    """リモートブランチに対応するローカルブランチを検索する"""
     result = subprocess.run(
         ["git", "branch", "-vv"],
         capture_output=True,
@@ -197,6 +205,7 @@ def find_local_branch_for_remote(remote_branch: str) -> str | None:
 
 
 def fetch_and_create_local_branch(branch_name: str) -> bool:
+    """リモートブランチを fetch してローカルブランチを作成または更新する"""
     check_result = subprocess.run(
         ["git", "rev-parse", "--verify", branch_name],
         capture_output=True,
@@ -216,6 +225,7 @@ def fetch_and_create_local_branch(branch_name: str) -> bool:
 
 
 def run_claude(prompt: str, worktree_path: str) -> None:
+    """Claude Code CLI を起動する"""
     subprocess.run(
         ["claude", "--permission-mode", "acceptEdits", prompt],
         cwd=worktree_path,
