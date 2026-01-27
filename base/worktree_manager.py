@@ -52,6 +52,42 @@ def create_worktree(worktree_path: Path, branch_name: str) -> bool:
     return result.returncode == 0
 
 
+def create_new_branch_worktree(
+    worktree_path: Path, branch_name: str, base_branch: str | None
+) -> bool:
+    """新しいブランチで worktree を作成する"""
+    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if base_branch is None:
+        result = subprocess.run(
+            ["git", "worktree", "add", str(worktree_path), "-b", branch_name],
+            capture_output=True,
+        )
+    else:
+        result = subprocess.run(
+            [
+                "git",
+                "worktree",
+                "add",
+                str(worktree_path),
+                "-b",
+                branch_name,
+                base_branch,
+            ],
+            capture_output=True,
+        )
+    return result.returncode == 0
+
+
+def branch_exists(branch_name: str) -> bool:
+    """指定したブランチが存在するかどうかを確認する"""
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", branch_name],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
 def setup_claude_symlink(worktree_path: Path) -> None:
     """元リポジトリの .claude ディレクトリへのシンボリックリンクを作成する"""
     repo_root = get_repo_root()

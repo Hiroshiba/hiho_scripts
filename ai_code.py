@@ -5,6 +5,7 @@ git worktreeを作成してClaude Code CLIを起動し、並列でCodexにブラ
 Codex提案後: ai/提案名-同じランダム8文字
 """
 
+import argparse
 import json
 import secrets
 import shutil
@@ -15,6 +16,17 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from base.worktree_manager import (
+    branch_exists,
+    create_new_branch_worktree,
+    create_worktree,
+    get_worktree_path,
+    setup_claude_symlink,
+    worktree_exists,
+)
+
 
 def main() -> None:
     CODEX_TIMEOUT = 15
@@ -22,37 +34,50 @@ def main() -> None:
 
     check_commands()
 
-    prompt = get_prompt()
+    base_branch, existing_branch, prompt = parse_arguments()
+
+    if not prompt:
+        prompt = get_prompt_from_stdin()
 
     if not is_git_repository():
         print("エラー: gitリポジトリ内で実行してください。", file=sys.stderr)
         sys.exit(1)
 
-    repo_root = get_repo_root()
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    random_suffix = generate_random_suffix(RANDOM_SUFFIX_LENGTH)
-    initial_branch = f"ai/{timestamp}-{random_suffix}"
+    if existing_branch:
+        handle_existing_branch_mode(existing_branch, prompt)
+    else:
+        handle_new_branch_mode(base_branch, prompt, RANDOM_SUFFIX_LENGTH, CODEX_TIMEOUT)
 
-    worktrees_dir = Path(f"{repo_root}.worktrees")
-    worktree_path = worktrees_dir / initial_branch
 
-    worktrees_dir.mkdir(parents=True, exist_ok=True)
-    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+def parse_arguments() -> tuple[str | None, str | None, str]:
+    """コマンドライン引数を解析する"""
+    parser = argparse.ArgumentParser(
+        description="git worktreeを作成してClaude Code CLIを起動する"
+    )
+    parser.add_argument(
+        "--base-branch",
+        type=str,
+        help="新規ブランチ作成時のベースとなるブランチ",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        help="既存のブランチ名（worktreeを作成または再利用）",
+    )
+    parser.add_argument("prompt", nargs="*", help="タスクの内容")
 
-    if not create_worktree(str(worktree_path), initial_branch):
-        print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
+    args = parser.parse_args()
+
+    if args.base_branch and args.branch:
+        print(
+            "エラー: --base-branch と --branch は同時に指定できません。",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    thread = threading.Thread(
-        target=suggest_branch_name,
-        args=(prompt, random_suffix, str(worktree_path), CODEX_TIMEOUT),
-        daemon=True,
-    )
-    thread.start()
+    prompt = " ".join(args.prompt).strip()
 
-    setup_claude_symlink(repo_root, worktree_path)
-
-    run_claude(prompt, str(worktree_path))
+    return args.base_branch, args.branch, prompt
 
 
 def check_commands() -> None:
@@ -63,11 +88,9 @@ def check_commands() -> None:
             sys.exit(1)
 
 
-def get_prompt() -> str:
-    """引数または標準入力からプロンプトを取得する"""
-    if len(sys.argv) > 1:
-        prompt = " ".join(sys.argv[1:])
-    elif not sys.stdin.isatty():
+def get_prompt_from_stdin() -> str:
+    """標準入力からプロンプトを取得する"""
+    if not sys.stdin.isatty():
         prompt = sys.stdin.read()
     else:
         print("タスクの内容を入力してください (Ctrl+Dで終了):")
@@ -82,6 +105,66 @@ def get_prompt() -> str:
     return prompt
 
 
+def handle_existing_branch_mode(branch_name: str, prompt: str) -> None:
+    """既存ブランチで worktree を作成・再利用する"""
+    if not branch_exists(branch_name):
+        print(
+            f"エラー: ブランチ '{branch_name}' が存在しません。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    worktree_path = get_worktree_path(branch_name)
+
+    if worktree_exists(worktree_path):
+        print(f"既存のworktreeを使用します: {worktree_path}")
+    else:
+        if not create_worktree(worktree_path, branch_name):
+            print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
+            sys.exit(1)
+        print(f"worktreeを作成しました: {worktree_path}")
+
+    setup_claude_symlink(worktree_path)
+
+    run_claude(prompt, str(worktree_path))
+
+
+def handle_new_branch_mode(
+    base_branch: str | None,
+    prompt: str,
+    random_suffix_length: int,
+    codex_timeout: int,
+) -> None:
+    """新しいブランチで worktree を作成する"""
+    if base_branch is not None and not branch_exists(base_branch):
+        print(
+            f"エラー: ベースブランチ '{base_branch}' が存在しません。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    random_suffix = generate_random_suffix(random_suffix_length)
+    initial_branch = f"ai/{timestamp}-{random_suffix}"
+
+    worktree_path = get_worktree_path(initial_branch)
+
+    if not create_new_branch_worktree(worktree_path, initial_branch, base_branch):
+        print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
+        sys.exit(1)
+
+    thread = threading.Thread(
+        target=suggest_branch_name,
+        args=(prompt, random_suffix, str(worktree_path), codex_timeout),
+        daemon=True,
+    )
+    thread.start()
+
+    setup_claude_symlink(worktree_path)
+
+    run_claude(prompt, str(worktree_path))
+
+
 def is_git_repository() -> bool:
     """カレントディレクトリが git リポジトリ内かどうかを判定する"""
     result = subprocess.run(
@@ -91,31 +174,10 @@ def is_git_repository() -> bool:
     return result.returncode == 0
 
 
-def get_repo_root() -> str:
-    """git リポジトリのルートパスを取得する"""
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise Exception("リポジトリのルートを取得できませんでした")
-    return result.stdout.strip()
-
-
 def generate_random_suffix(length: int) -> str:
     """指定した長さのランダムな英数字文字列を生成する"""
     alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
     return "".join(secrets.choice(alphabet) for _ in range(length))
-
-
-def create_worktree(worktree_path: str, branch: str) -> bool:
-    """指定したパスに新しいブランチで worktree を作成する"""
-    result = subprocess.run(
-        ["git", "worktree", "add", worktree_path, "-b", branch],
-        capture_output=True,
-    )
-    return result.returncode == 0
 
 
 def suggest_branch_name(
@@ -160,9 +222,8 @@ def suggest_branch_name(
             )
 
             if result.returncode == 0:
-                with open(output_path) as f:
-                    data = json.load(f)
-                    suggested_name = data.get("branchName", "")
+                data = json.loads(Path(output_path).read_text())
+                suggested_name = data.get("branchName", "")
 
                 if suggested_name and len(suggested_name) <= 50:
                     new_branch = f"ai/{suggested_name}-{random_suffix}"
@@ -185,15 +246,6 @@ def suggest_branch_name(
         finally:
             Path(output_path).unlink(missing_ok=True)
             Path(schema_path).unlink(missing_ok=True)
-
-
-def setup_claude_symlink(repo_root: str, worktree_path: Path) -> None:
-    """元リポジトリの .claude ディレクトリへのシンボリックリンクを作成する"""
-    claude_dir = Path(repo_root) / ".claude"
-    worktree_claude = worktree_path / ".claude"
-
-    if claude_dir.exists() and not worktree_claude.exists():
-        worktree_claude.symlink_to(claude_dir)
 
 
 def run_claude(prompt: str, worktree_path: str) -> None:
