@@ -7,13 +7,15 @@ PR URLまたはPR番号からリモートブランチを特定し、worktreeを�
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from base.claude import get_prompt, run_claude
+from base.git import check_commands, is_git_repository
+from base.github import get_current_org_repo, get_current_user
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
     create_worktree,
@@ -24,9 +26,9 @@ from base.worktree_manager import (
 
 
 def main() -> None:
-    check_commands()
+    check_commands(["git", "gh", "claude"])
 
-    prompt = get_prompt()
+    prompt = get_prompt("PR URLまたはプロンプトを入力してください")
 
     if not is_git_repository():
         print("エラー: gitリポジトリ内で実行してください。", file=sys.stderr)
@@ -89,56 +91,6 @@ def main() -> None:
     run_claude(prompt, str(worktree_path))
 
 
-def check_commands() -> None:
-    """必要なコマンドの存在を確認する"""
-    for cmd in ["git", "gh", "claude"]:
-        if not shutil.which(cmd):
-            print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
-            sys.exit(1)
-
-
-def get_prompt() -> str:
-    """引数または標準入力からプロンプトを取得する"""
-    if len(sys.argv) > 1:
-        prompt = " ".join(sys.argv[1:])
-    elif not sys.stdin.isatty():
-        prompt = sys.stdin.read()
-    else:
-        print("PR URLまたはプロンプトを入力してください (Ctrl+Dで終了):")
-        prompt = sys.stdin.read()
-
-    prompt = prompt.strip()
-
-    if not prompt:
-        print("エラー: プロンプトが空です。", file=sys.stderr)
-        sys.exit(1)
-
-    return prompt
-
-
-def is_git_repository() -> bool:
-    """カレントディレクトリが git リポジトリ内かどうかを判定する"""
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"],
-        capture_output=True,
-    )
-    return result.returncode == 0
-
-
-def get_current_org_repo() -> tuple[str, str]:
-    """現在のリポジトリの org と repo を取得する"""
-    result = subprocess.run(
-        ["gh", "repo", "view", "--json", "owner,name"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise Exception("現在のリポジトリ情報を取得できませんでした")
-
-    data = json.loads(result.stdout)
-    return data["owner"]["login"], data["name"]
-
-
 def get_pr_author(pr_number: int) -> str:
     """PR の作者を取得する"""
     result = subprocess.run(
@@ -151,19 +103,6 @@ def get_pr_author(pr_number: int) -> str:
 
     data = json.loads(result.stdout)
     return data["author"]["login"]
-
-
-def get_current_user() -> str:
-    """現在の GitHub ユーザー名を取得する"""
-    result = subprocess.run(
-        ["gh", "api", "user", "--jq", ".login"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise Exception("現在のGitHubユーザーを取得できませんでした")
-
-    return result.stdout.strip()
 
 
 def get_pr_branch(pr_number: int) -> str | None:
@@ -222,14 +161,6 @@ def fetch_and_create_local_branch(branch_name: str) -> bool:
         capture_output=True,
     )
     return fetch_result.returncode == 0
-
-
-def run_claude(prompt: str, worktree_path: str) -> None:
-    """Claude Code CLI を起動する"""
-    subprocess.run(
-        ["claude", "--permission-mode", "acceptEdits", prompt],
-        cwd=worktree_path,
-    )
 
 
 if __name__ == "__main__":

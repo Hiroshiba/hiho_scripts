@@ -8,7 +8,6 @@ Codex提案後: ai/提案名-同じランダム8文字
 import argparse
 import json
 import secrets
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from base.claude import run_claude
+from base.git import check_commands, is_git_repository
 from base.worktree_manager import (
     branch_exists,
     create_new_branch_worktree,
@@ -32,7 +33,7 @@ def main() -> None:
     CODEX_TIMEOUT = 15
     RANDOM_SUFFIX_LENGTH = 8
 
-    check_commands()
+    check_commands(["git", "codex", "claude"])
 
     base_branch, existing_branch, prompt = parse_arguments()
 
@@ -78,14 +79,6 @@ def parse_arguments() -> tuple[str | None, str | None, str]:
     prompt = " ".join(args.prompt).strip()
 
     return args.base_branch, args.branch, prompt
-
-
-def check_commands() -> None:
-    """必要なコマンドの存在を確認する"""
-    for cmd in ["git", "codex", "claude"]:
-        if not shutil.which(cmd):
-            print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
-            sys.exit(1)
 
 
 def get_prompt_from_stdin() -> str:
@@ -165,15 +158,6 @@ def handle_new_branch_mode(
     run_claude(prompt, str(worktree_path))
 
 
-def is_git_repository() -> bool:
-    """カレントディレクトリが git リポジトリ内かどうかを判定する"""
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"],
-        capture_output=True,
-    )
-    return result.returncode == 0
-
-
 def generate_random_suffix(length: int) -> str:
     """指定した長さのランダムな英数字文字列を生成する"""
     alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -246,14 +230,6 @@ def suggest_branch_name(
         finally:
             Path(output_path).unlink(missing_ok=True)
             Path(schema_path).unlink(missing_ok=True)
-
-
-def run_claude(prompt: str, worktree_path: str) -> None:
-    """Claude Code CLI を起動する"""
-    subprocess.run(
-        ["claude", "--permission-mode", "acceptEdits", prompt],
-        cwd=worktree_path,
-    )
 
 
 if __name__ == "__main__":
