@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""
+カウンタープルリクエスト（cross-fork PR）を作成するためのスクリプト
+PRの送り主のfork/branchに対して変更を加え、PRを出す作業をClaude Codeに依頼する
+"""
+
+import datetime
+import json
+import secrets
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from base.pr_parser import parse_pr_info, validate_org_repo
+from base.worktree_manager import (
+    create_new_branch_worktree,
+    get_worktree_path,
+    setup_claude_symlink,
+)
+
+
+def main() -> None:
+    check_commands()
+
+    prompt = get_prompt()
+
+    if not is_git_repository():
+        print("エラー: gitリポジトリ内で実行してください。", file=sys.stderr)
+        sys.exit(1)
+
+    pr_info = parse_pr_info(prompt)
+    if not pr_info:
+        print("エラー: PR URLまたはPRパスが見つかりませんでした。", file=sys.stderr)
+        print("例: https://github.com/owner/repo/pull/123", file=sys.stderr)
+        print("例: owner/repo/pull/123", file=sys.stderr)
+        print("例: pull/123", file=sys.stderr)
+        sys.exit(1)
+
+    pr_number = pr_info["number"]
+
+    current_org, current_repo = get_current_org_repo()
+    validate_org_repo(pr_info, current_org, current_repo)
+
+    fork_owner, fork_repo, target_branch = get_pr_fork_info(pr_number)
+
+    remote_name = add_fork_remote(fork_owner, current_repo)
+    fetch_fork_branch(remote_name, target_branch)
+
+    branch_name = generate_branch_name()
+    base_branch = f"{remote_name}/{target_branch}"
+
+    worktree_path = get_worktree_path(branch_name)
+
+    if not create_new_branch_worktree(worktree_path, branch_name, base_branch):
+        print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
+        sys.exit(1)
+    print(f"worktreeを作成しました: {worktree_path}")
+
+    setup_claude_symlink(worktree_path)
+
+    my_user = get_current_user()
+    counter_pr_prompt = build_counter_pr_prompt(
+        fork_owner, fork_repo, target_branch, my_user, branch_name, prompt
+    )
+
+    run_claude(counter_pr_prompt, str(worktree_path))
+
+
+def check_commands() -> None:
+    """必要なコマンドの存在を確認する"""
+    for cmd in ["git", "gh", "claude"]:
+        if not shutil.which(cmd):
+            print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
+            sys.exit(1)
+
+
+def get_prompt() -> str:
+    """引数または標準入力からプロンプトを取得する"""
+    if len(sys.argv) > 1:
+        prompt = " ".join(sys.argv[1:])
+    elif not sys.stdin.isatty():
+        prompt = sys.stdin.read()
+    else:
+        print("PR URLまたはプロンプトを入力してください (Ctrl+Dで終了):")
+        prompt = sys.stdin.read()
+
+    prompt = prompt.strip()
+
+    if not prompt:
+        print("エラー: プロンプトが空です。", file=sys.stderr)
+        sys.exit(1)
+
+    return prompt
+
+
+def is_git_repository() -> bool:
+    """カレントディレクトリが git リポジトリ内かどうかを判定する"""
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def get_current_org_repo() -> tuple[str, str]:
+    """現在のリポジトリの org と repo を取得する"""
+    result = subprocess.run(
+        ["gh", "repo", "view", "--json", "owner,name"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception("現在のリポジトリ情報を取得できませんでした")
+
+    data = json.loads(result.stdout)
+    return data["owner"]["login"], data["name"]
+
+
+def get_pr_fork_info(pr_number: int) -> tuple[str, str, str]:
+    """PR のfork owner/repo/branch を取得する"""
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "headRepositoryOwner,headRepository,headRefName",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception(f"PR #{pr_number} の情報を取得できませんでした")
+
+    data = json.loads(result.stdout)
+    fork_owner = data["headRepositoryOwner"]["login"]
+    fork_repo = data["headRepository"]["name"]
+    branch = data["headRefName"]
+
+    return fork_owner, fork_repo, branch
+
+
+def get_current_user() -> str:
+    """現在の GitHub ユーザー名を取得する"""
+    result = subprocess.run(
+        ["gh", "api", "user", "--jq", ".login"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception("現在のGitHubユーザーを取得できませんでした")
+
+    return result.stdout.strip()
+
+
+def add_fork_remote(fork_owner: str, repo_name: str) -> str:
+    """fork先リモートを追加する"""
+    remote_name = fork_owner
+
+    check_result = subprocess.run(
+        ["git", "remote", "get-url", remote_name],
+        capture_output=True,
+    )
+
+    if check_result.returncode == 0:
+        print(f"リモート '{remote_name}' は既に存在します")
+        return remote_name
+
+    result = subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            remote_name,
+            f"git@github.com:{fork_owner}/{repo_name}.git",
+        ],
+        capture_output=True,
+    )
+
+    if result.returncode != 0:
+        raise Exception(f"リモート '{remote_name}' の追加に失敗しました")
+
+    print(f"リモート '{remote_name}' を追加しました")
+    return remote_name
+
+
+def fetch_fork_branch(remote_name: str, branch_name: str) -> None:
+    """fork先ブランチをfetchする"""
+    result = subprocess.run(
+        ["git", "fetch", remote_name, branch_name],
+        capture_output=True,
+    )
+
+    if result.returncode != 0:
+        raise Exception(
+            f"リモート '{remote_name}' のブランチ '{branch_name}' のfetchに失敗しました"
+        )
+
+    print(f"ブランチ '{remote_name}/{branch_name}' をfetchしました")
+
+
+def generate_branch_name() -> str:
+    """timestamp + random suffixでブランチ名生成する"""
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    random_suffix = secrets.token_hex(4)
+    return f"ai/counter-pr/{timestamp}-{random_suffix}"
+
+
+def build_counter_pr_prompt(
+    fork_owner: str,
+    fork_repo: str,
+    target_branch: str,
+    my_user: str,
+    my_branch: str,
+    user_prompt: str,
+) -> str:
+    """3行説明文付きプロンプト組み立てる"""
+    return f"""これはカウンタープルリクエスト（cross-fork PR）のタスクです。{fork_owner}/{fork_repo} の {target_branch} ブランチへPRを出します。
+以下の指示に従ってコーディングを行い、完了したらコミットし、プルリクエストを作成してください。
+PRは `gh pr create --repo {fork_owner}/{fork_repo} --head {my_user}:{my_branch} --base {target_branch}` で作成してください。
+
+以下が詳細なタスクです:
+{user_prompt}"""
+
+
+def run_claude(prompt: str, worktree_path: str) -> None:
+    """Claude Code CLI を起動する"""
+    subprocess.run(
+        ["claude", "--permission-mode", "acceptEdits", prompt],
+        cwd=worktree_path,
+    )
+
+
+if __name__ == "__main__":
+    main()
