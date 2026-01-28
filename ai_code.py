@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from base.claude import run_claude
+from base.assistant import AssistantCli, run_assistant
 from base.git import check_commands, is_git_repository
 from base.worktree_manager import (
     branch_exists,
@@ -33,9 +33,11 @@ def main() -> None:
     CODEX_TIMEOUT = 15
     RANDOM_SUFFIX_LENGTH = 8
 
-    check_commands(["git", "codex", "claude"])
-
-    base_branch, existing_branch, prompt = parse_arguments()
+    base_branch, existing_branch, assistant, prompt = parse_arguments()
+    if assistant == "claude":
+        check_commands(["git", "codex", "claude"])
+    else:
+        check_commands(["git", "codex"])
 
     if not prompt:
         prompt = get_prompt_from_stdin()
@@ -45,15 +47,17 @@ def main() -> None:
         sys.exit(1)
 
     if existing_branch:
-        handle_existing_branch_mode(existing_branch, prompt)
+        handle_existing_branch_mode(existing_branch, assistant, prompt)
     else:
-        handle_new_branch_mode(base_branch, prompt, RANDOM_SUFFIX_LENGTH, CODEX_TIMEOUT)
+        handle_new_branch_mode(
+            base_branch, assistant, prompt, RANDOM_SUFFIX_LENGTH, CODEX_TIMEOUT
+        )
 
 
-def parse_arguments() -> tuple[str | None, str | None, str]:
+def parse_arguments() -> tuple[str | None, str | None, AssistantCli, str]:
     """コマンドライン引数を解析する"""
     parser = argparse.ArgumentParser(
-        description="git worktreeを作成してClaude Code CLIを起動する"
+        description="git worktreeを作成してAI コーディング CLI（Claude/Codex）を起動する"
     )
     parser.add_argument(
         "--base-branch",
@@ -64,6 +68,12 @@ def parse_arguments() -> tuple[str | None, str | None, str]:
         "--branch",
         type=str,
         help="既存のブランチ名（worktreeを作成または再利用）",
+    )
+    parser.add_argument(
+        "--ai",
+        choices=["claude", "codex"],
+        default="claude",
+        help="起動するCLI（デフォルト: claude）",
     )
     parser.add_argument("prompt", nargs="*", help="タスクの内容")
 
@@ -78,7 +88,7 @@ def parse_arguments() -> tuple[str | None, str | None, str]:
 
     prompt = " ".join(args.prompt).strip()
 
-    return args.base_branch, args.branch, prompt
+    return args.base_branch, args.branch, args.ai, prompt
 
 
 def get_prompt_from_stdin() -> str:
@@ -98,7 +108,9 @@ def get_prompt_from_stdin() -> str:
     return prompt
 
 
-def handle_existing_branch_mode(branch_name: str, prompt: str) -> None:
+def handle_existing_branch_mode(
+    branch_name: str, assistant: AssistantCli, prompt: str
+) -> None:
     """既存ブランチで worktree を作成・再利用する"""
     if not branch_exists(branch_name):
         print(
@@ -117,13 +129,15 @@ def handle_existing_branch_mode(branch_name: str, prompt: str) -> None:
             sys.exit(1)
         print(f"worktreeを作成しました: {worktree_path}")
 
-    setup_claude_symlink(worktree_path)
+    if assistant == "claude":
+        setup_claude_symlink(worktree_path)
 
-    run_claude(prompt, str(worktree_path))
+    run_assistant(assistant, prompt, str(worktree_path))
 
 
 def handle_new_branch_mode(
     base_branch: str | None,
+    assistant: AssistantCli,
     prompt: str,
     random_suffix_length: int,
     codex_timeout: int,
@@ -153,9 +167,10 @@ def handle_new_branch_mode(
     )
     thread.start()
 
-    setup_claude_symlink(worktree_path)
+    if assistant == "claude":
+        setup_claude_symlink(worktree_path)
 
-    run_claude(prompt, str(worktree_path))
+    run_assistant(assistant, prompt, str(worktree_path))
 
 
 def generate_random_suffix(length: int) -> str:

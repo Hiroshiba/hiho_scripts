@@ -5,6 +5,7 @@ PR URLまたはPR番号からリモートブランチを特定し、worktreeを�
 対応形式: https://github.com/org/repo/pull/123, org/repo/pull/123, pull/123
 """
 
+import argparse
 import json
 import re
 import subprocess
@@ -13,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from base.claude import get_prompt, run_claude
+from base.assistant import AssistantCli, run_assistant
 from base.git import check_commands, is_git_repository
 from base.github import get_current_org_repo, get_current_user
 from base.pr_parser import parse_pr_info, validate_org_repo
@@ -26,9 +27,14 @@ from base.worktree_manager import (
 
 
 def main() -> None:
-    check_commands(["git", "gh", "claude"])
+    assistant, prompt = parse_arguments()
+    if assistant == "claude":
+        check_commands(["git", "gh", "claude"])
+    else:
+        check_commands(["git", "gh", "codex"])
 
-    prompt = get_prompt("PR URLまたはプロンプトを入力してください")
+    if not prompt:
+        prompt = get_prompt_from_stdin("PR URLまたはプロンプトを入力してください")
 
     if not is_git_repository():
         print("エラー: gitリポジトリ内で実行してください。", file=sys.stderr)
@@ -86,9 +92,44 @@ def main() -> None:
             sys.exit(1)
         print(f"worktreeを作成しました: {worktree_path}")
 
-    setup_claude_symlink(worktree_path)
+    if assistant == "claude":
+        setup_claude_symlink(worktree_path)
 
-    run_claude(prompt, str(worktree_path))
+    run_assistant(assistant, prompt, str(worktree_path))
+
+
+def parse_arguments() -> tuple[AssistantCli, str]:
+    """コマンドライン引数を解析する"""
+    parser = argparse.ArgumentParser(
+        description="PR 続行用にworktreeを作り、AI コーディング CLI（Claude/Codex）を起動する"
+    )
+    parser.add_argument(
+        "--ai",
+        choices=["claude", "codex"],
+        default="claude",
+        help="起動するCLI（デフォルト: claude）",
+    )
+    parser.add_argument("prompt", nargs="*", help="PR URLまたはプロンプト")
+    args = parser.parse_args()
+    prompt = " ".join(args.prompt).strip()
+    return args.ai, prompt
+
+
+def get_prompt_from_stdin(stdin_message: str) -> str:
+    """標準入力からプロンプトを取得する"""
+    if not sys.stdin.isatty():
+        prompt = sys.stdin.read()
+    else:
+        print(f"{stdin_message} (Ctrl+Dで終了):")
+        prompt = sys.stdin.read()
+
+    prompt = prompt.strip()
+
+    if not prompt:
+        print("エラー: プロンプトが空です。", file=sys.stderr)
+        sys.exit(1)
+
+    return prompt
 
 
 def get_pr_author(pr_number: int) -> str:
