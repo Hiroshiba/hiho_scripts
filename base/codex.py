@@ -1,16 +1,14 @@
 """Codex CLI のユーティリティ関数を提供する"""
 
-import subprocess
-import sys
+import os
+import shlex
 
 
 def run_codex(prompt: str, worktree_path: str) -> None:
     """Codex CLI を起動する"""
-    # FIXME: 日本語入力したあとエンターが効かない
-    subprocess.run(
-        ["codex", "--ask-for-approval", "untrusted", "--disable", "shell_snapshot", "--no-alt-screen", prompt],
-        cwd=worktree_path,
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
+    script = (
+        f'cd {shlex.quote(worktree_path)} || exit 1; '
+        f'codex --ask-for-approval untrusted {shlex.quote(prompt)}; '
+        f'exec bash -i'
     )
+    os.execvp("bash", ["bash", "-lc", script])

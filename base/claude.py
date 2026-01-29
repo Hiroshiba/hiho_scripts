@@ -1,15 +1,18 @@
 """Claude Code CLI のユーティリティ関数を提供する"""
 
-import subprocess
+import os
+import shlex
 import sys
 
 
 def run_claude(prompt: str, worktree_path: str) -> None:
     """Claude Code CLI を起動する"""
-    subprocess.run(
-        ["claude", "--permission-mode", "acceptEdits", prompt],
-        cwd=worktree_path,
+    script = (
+        f'cd {shlex.quote(worktree_path)} || exit 1; '
+        f'claude --permission-mode acceptEdits {shlex.quote(prompt)}; '
+        f'exec bash -i'
     )
+    os.execvp("bash", ["bash", "-lc", script])
 
 
 def get_prompt(stdin_message: str) -> str:
