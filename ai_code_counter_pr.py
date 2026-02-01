@@ -200,7 +200,7 @@ def build_counter_pr_prompt(
 ) -> str:
     """3行説明文付きプロンプト組み立てる"""
     return f"""これはカウンタープルリクエスト（cross-fork PR）のタスクです。{fork_owner}/{fork_repo} の {target_branch} ブランチへPRを出します。
-以下の指示に従ってコーディングを行い、完了したらコミットし、プルリクエストを作成してください。
+以下の指示に従ってコーディングを行い、完了したらコミットしてプッシュし、プルリクエストを作成してください。
 PRは `gh pr create --repo {fork_owner}/{fork_repo} --head {my_user}:{my_branch} --base {target_branch}` で作成してください。
 
 以下が詳細なタスクです:
