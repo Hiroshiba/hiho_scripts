@@ -15,8 +15,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from base.assistant import AssistantCli, run_assistant
-from base.git import check_commands, is_git_repository
-from base.github import get_current_org_repo, get_current_user
+from base.git import check_commands, fetch_remote_branch, is_git_repository
+from base.github import (
+    add_fork_remote,
+    get_current_org_repo,
+    get_current_user,
+    get_pr_fork_info,
+)
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
     create_new_branch_worktree,
@@ -55,17 +60,20 @@ def main() -> None:
     fork_owner, fork_repo, target_branch = get_pr_fork_info(pr_number)
 
     remote_name = add_fork_remote(fork_owner, current_repo)
-    fetch_fork_branch(remote_name, target_branch)
+    fetch_remote_branch(remote_name, target_branch)
 
     branch_name = generate_branch_name()
     base_branch = f"{remote_name}/{target_branch}"
+
+    print(f"カウンタープルリクエスト対象: {fork_owner}/{fork_repo} のブランチ '{target_branch}'")
+    print(f"新規ブランチ '{branch_name}' を作成します")
 
     worktree_path = get_worktree_path(branch_name)
 
     if not create_new_branch_worktree(worktree_path, branch_name, base_branch):
         print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
         sys.exit(1)
-    print(f"worktreeを作成しました: {worktree_path}")
+    print(f"worktree パス: {worktree_path}")
 
     if assistant == "claude":
         setup_claude_symlink(worktree_path)
@@ -110,77 +118,6 @@ def get_prompt_from_stdin(stdin_message: str) -> str:
         sys.exit(1)
 
     return prompt
-
-
-def get_pr_fork_info(pr_number: int) -> tuple[str, str, str]:
-    """PR のfork owner/repo/branch を取得する"""
-    result = subprocess.run(
-        [
-            "gh",
-            "pr",
-            "view",
-            str(pr_number),
-            "--json",
-            "headRepositoryOwner,headRepository,headRefName",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise Exception(f"PR #{pr_number} の情報を取得できませんでした")
-
-    data = json.loads(result.stdout)
-    fork_owner = data["headRepositoryOwner"]["login"]
-    fork_repo = data["headRepository"]["name"]
-    branch = data["headRefName"]
-
-    return fork_owner, fork_repo, branch
-
-
-def add_fork_remote(fork_owner: str, repo_name: str) -> str:
-    """fork先リモートを追加する"""
-    remote_name = fork_owner
-
-    check_result = subprocess.run(
-        ["git", "remote", "get-url", remote_name],
-        capture_output=True,
-    )
-
-    if check_result.returncode == 0:
-        print(f"リモート '{remote_name}' は既に存在します")
-        return remote_name
-
-    result = subprocess.run(
-        [
-            "git",
-            "remote",
-            "add",
-            remote_name,
-            f"git@github.com:{fork_owner}/{repo_name}.git",
-        ],
-        capture_output=True,
-    )
-
-    if result.returncode != 0:
-        raise Exception(f"リモート '{remote_name}' の追加に失敗しました")
-
-    print(f"リモート '{remote_name}' を追加しました")
-    return remote_name
-
-
-def fetch_fork_branch(remote_name: str, branch_name: str) -> None:
-    """fork先ブランチをfetchする"""
-    result = subprocess.run(
-        ["git", "fetch", remote_name, branch_name],
-        capture_output=True,
-    )
-
-    if result.returncode != 0:
-        raise Exception(
-            f"リモート '{remote_name}' のブランチ '{branch_name}' のfetchに失敗しました"
-        )
-
-    print(f"ブランチ '{remote_name}/{branch_name}' をfetchしました")
 
 
 def generate_branch_name() -> str:

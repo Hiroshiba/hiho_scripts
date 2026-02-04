@@ -20,3 +20,18 @@ def check_commands(commands: list[str]) -> None:
         if not shutil.which(cmd):
             print(f"エラー: {cmd}コマンドが見つかりません。", file=sys.stderr)
             sys.exit(1)
+
+
+def fetch_remote_branch(remote_name: str, branch_name: str) -> None:
+    """リモートブランチを fetch する"""
+    result = subprocess.run(
+        ["git", "fetch", remote_name, branch_name],
+        capture_output=True,
+    )
+
+    if result.returncode != 0:
+        raise Exception(
+            f"リモート '{remote_name}' のブランチ '{branch_name}' のfetchに失敗しました"
+        )
+
+    print(f"ブランチ '{remote_name}/{branch_name}' をfetchしました")

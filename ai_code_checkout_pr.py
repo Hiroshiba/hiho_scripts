@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-PRの実装を続けるためのスクリプト
-PR URLまたはPR番号からリモートブランチを特定し、worktreeを作成してClaude Code CLIを起動する
+PR のブランチを worktree にチェックアウトして AI CLI を起動する
+PR の作業を続けるために、PR のリモートブランチを worktree にチェックアウトし、AI CLI を起動する
 対応形式: https://github.com/org/repo/pull/123, org/repo/pull/123, pull/123
 """
 
@@ -16,7 +16,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from base.assistant import AssistantCli, run_assistant
 from base.git import check_commands, is_git_repository
-from base.github import get_current_org_repo, get_current_user
+from base.github import (
+    add_fork_remote,
+    get_current_org_repo,
+    get_current_user,
+    get_pr_fork_info,
+)
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
     create_worktree,
@@ -56,25 +61,26 @@ def main() -> None:
     pr_author = get_pr_author(pr_number)
     current_user = get_current_user()
 
+    fork_owner, fork_repo, branch_name = get_pr_fork_info(pr_number)
+
+    print(f"PR #{pr_number} のブランチ '{branch_name}' をチェックアウトします")
+    print(f"PR 作者: {pr_author}")
+
+    is_from_origin = fork_owner == current_org
+    if not is_from_origin:
+        print(f"fork: {fork_owner}/{fork_repo}")
     if pr_author != current_user:
-        print(
-            f"エラー: PR #{pr_number} の作者 '{pr_author}' が現在のユーザー '{current_user}' と一致しません。",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        print(f"(現在のユーザー: {current_user})")
 
-    branch_name = get_pr_branch(pr_number)
-    if not branch_name:
-        print(
-            f"エラー: PR #{pr_number} のブランチが見つかりませんでした。",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    if is_from_origin:
+        remote_name = "origin"
+    else:
+        remote_name = add_fork_remote(fork_owner, current_repo)
 
-    local_branch = find_local_branch_for_remote(branch_name)
+    local_branch = find_local_branch_for_remote(remote_name, branch_name)
 
     if not local_branch:
-        if not fetch_and_create_local_branch(branch_name):
+        if not fetch_and_create_local_branch(remote_name, branch_name):
             print(
                 f"エラー: ブランチ '{branch_name}' のfetchに失敗しました。",
                 file=sys.stderr,
@@ -146,21 +152,7 @@ def get_pr_author(pr_number: int) -> str:
     return data["author"]["login"]
 
 
-def get_pr_branch(pr_number: int) -> str | None:
-    """PR のブランチ名を取得する"""
-    result = subprocess.run(
-        ["gh", "pr", "view", str(pr_number), "--json", "headRefName"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-
-    data = json.loads(result.stdout)
-    return data.get("headRefName")
-
-
-def find_local_branch_for_remote(remote_branch: str) -> str | None:
+def find_local_branch_for_remote(remote_name: str, remote_branch: str) -> str | None:
     """リモートブランチに対応するローカルブランチを検索する"""
     result = subprocess.run(
         ["git", "branch", "-vv"],
@@ -171,7 +163,7 @@ def find_local_branch_for_remote(remote_branch: str) -> str | None:
     if result.returncode != 0:
         return None
 
-    pattern = re.compile(r"^\*?\s+(\S+)\s+\w+\s+\[origin/([^:\]]+)")
+    pattern = re.compile(rf"^\*?\s+(\S+)\s+\w+\s+\[{remote_name}/([^:\]]+)")
 
     for line in result.stdout.splitlines():
         match = pattern.match(line)
@@ -184,7 +176,7 @@ def find_local_branch_for_remote(remote_branch: str) -> str | None:
     return None
 
 
-def fetch_and_create_local_branch(branch_name: str) -> bool:
+def fetch_and_create_local_branch(remote_name: str, branch_name: str) -> bool:
     """リモートブランチを fetch してローカルブランチを作成または更新する"""
     check_result = subprocess.run(
         ["git", "rev-parse", "--verify", branch_name],
@@ -192,13 +184,13 @@ def fetch_and_create_local_branch(branch_name: str) -> bool:
     )
     if check_result.returncode == 0:
         update_result = subprocess.run(
-            ["git", "fetch", "origin", f"{branch_name}:{branch_name}"],
+            ["git", "fetch", remote_name, f"{branch_name}:{branch_name}"],
             capture_output=True,
         )
         return update_result.returncode == 0
 
     fetch_result = subprocess.run(
-        ["git", "fetch", "origin", f"{branch_name}:{branch_name}"],
+        ["git", "fetch", remote_name, f"{branch_name}:{branch_name}"],
         capture_output=True,
     )
     return fetch_result.returncode == 0

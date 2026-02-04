@@ -122,12 +122,14 @@ def handle_existing_branch_mode(
     worktree_path = get_worktree_path(branch_name)
 
     if worktree_exists(worktree_path):
-        print(f"既存のworktreeを使用します: {worktree_path}")
+        print(f"既存ブランチ '{branch_name}' の worktree を使用します")
+        print(f"worktree パス: {worktree_path}")
     else:
         if not create_worktree(worktree_path, branch_name):
             print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
             sys.exit(1)
-        print(f"worktreeを作成しました: {worktree_path}")
+        print(f"ブランチ '{branch_name}' の worktree を作成しました")
+        print(f"worktree パス: {worktree_path}")
 
     if assistant == "claude":
         setup_claude_symlink(worktree_path)
@@ -159,6 +161,12 @@ def handle_new_branch_mode(
     if not create_new_branch_worktree(worktree_path, initial_branch, base_branch):
         print("エラー: worktreeの作成に失敗しました。", file=sys.stderr)
         sys.exit(1)
+
+    if base_branch:
+        print(f"ベースブランチ '{base_branch}' から新規ブランチ '{initial_branch}' を作成しました")
+    else:
+        print(f"新規ブランチ '{initial_branch}' を作成しました")
+    print(f"worktree パス: {worktree_path}")
 
     thread = threading.Thread(
         target=suggest_branch_name,
