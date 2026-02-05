@@ -88,11 +88,21 @@ def branch_exists(branch_name: str) -> bool:
     return result.returncode == 0
 
 
-def setup_claude_symlink(worktree_path: Path) -> None:
-    """元リポジトリの .claude ディレクトリへのシンボリックリンクを作成する"""
-    repo_root = get_repo_root()
-    claude_dir = Path(repo_root) / ".claude"
-    worktree_claude = worktree_path / ".claude"
+def copy_local_configs(worktree_path: Path) -> None:
+    """ローカル設定ファイルを worktree にコピーする"""
+    import shutil
 
-    if claude_dir.exists() and not worktree_claude.exists():
-        worktree_claude.symlink_to(claude_dir)
+    repo_root = get_repo_root()
+    repo_root_path = Path(repo_root)
+
+    source_claude_local_md = repo_root_path / "CLAUDE.local.md"
+    dest_claude_local_md = worktree_path / "CLAUDE.local.md"
+    if source_claude_local_md.exists():
+        shutil.copy2(source_claude_local_md, dest_claude_local_md)
+
+    source_settings = repo_root_path / ".claude" / "settings.local.json"
+    if source_settings.exists():
+        dest_claude_dir = worktree_path / ".claude"
+        dest_claude_dir.mkdir(parents=True, exist_ok=True)
+        dest_settings = dest_claude_dir / "settings.local.json"
+        shutil.copy2(source_settings, dest_settings)

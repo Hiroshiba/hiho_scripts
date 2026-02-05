@@ -21,10 +21,10 @@ from base.assistant import AssistantCli, run_assistant
 from base.git import check_commands, is_git_repository
 from base.worktree_manager import (
     branch_exists,
+    copy_local_configs,
     create_new_branch_worktree,
     create_worktree,
     get_worktree_path,
-    setup_claude_symlink,
     worktree_exists,
 )
 
@@ -132,7 +132,7 @@ def handle_existing_branch_mode(
         print(f"worktree パス: {worktree_path}")
 
     if assistant == "claude":
-        setup_claude_symlink(worktree_path)
+        copy_local_configs(worktree_path)
 
     run_assistant(assistant, prompt, str(worktree_path))
 
@@ -176,7 +176,7 @@ def handle_new_branch_mode(
     thread.start()
 
     if assistant == "claude":
-        setup_claude_symlink(worktree_path)
+        copy_local_configs(worktree_path)
 
     run_assistant(assistant, prompt, str(worktree_path))
 

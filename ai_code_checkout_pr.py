@@ -24,9 +24,9 @@ from base.github import (
 )
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
+    copy_local_configs,
     create_worktree,
     get_worktree_path,
-    setup_claude_symlink,
     worktree_exists,
 )
 
@@ -99,7 +99,7 @@ def main() -> None:
         print(f"worktreeを作成しました: {worktree_path}")
 
     if assistant == "claude":
-        setup_claude_symlink(worktree_path)
+        copy_local_configs(worktree_path)
 
     run_assistant(assistant, prompt, str(worktree_path))
 

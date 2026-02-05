@@ -24,9 +24,9 @@ from base.github import (
 )
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
+    copy_local_configs,
     create_new_branch_worktree,
     get_worktree_path,
-    setup_claude_symlink,
 )
 
 
@@ -76,7 +76,7 @@ def main() -> None:
     print(f"worktree パス: {worktree_path}")
 
     if assistant == "claude":
-        setup_claude_symlink(worktree_path)
+        copy_local_configs(worktree_path)
 
     my_user = get_current_user()
     counter_pr_prompt = build_counter_pr_prompt(
