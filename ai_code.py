@@ -224,6 +224,7 @@ def suggest_branch_name(
                     schema_path,
                     codex_prompt,
                 ],
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 timeout=timeout,
             )
