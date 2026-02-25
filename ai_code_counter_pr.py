@@ -6,9 +6,7 @@ PRの送り主のfork/branchに対して変更を加え、PRを出す作業をCl
 
 import argparse
 import datetime
-import json
 import secrets
-import subprocess
 import sys
 from pathlib import Path
 

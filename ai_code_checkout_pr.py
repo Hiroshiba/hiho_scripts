@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 PR のブランチを worktree にチェックアウトして AI CLI を起動する
-PR の作業を続けるために、PR のリモートブランチを worktree にチェックアウトし、AI CLI を起動する
 対応形式: https://github.com/org/repo/pull/123, org/repo/pull/123, pull/123
 """
 
@@ -101,7 +100,20 @@ def main() -> None:
     if assistant == "claude":
         copy_local_configs(worktree_path)
 
-    run_assistant(assistant, prompt, str(worktree_path))
+    checkout_pr_prompt = build_checkout_pr_prompt(
+        pr_number,
+        current_org,
+        current_repo,
+        pr_author,
+        fork_owner,
+        fork_repo,
+        branch_name,
+        local_branch,
+        remote_name,
+        is_from_origin,
+        prompt,
+    )
+    run_assistant(assistant, checkout_pr_prompt, str(worktree_path))
 
 
 def parse_arguments() -> tuple[AssistantCli, str]:
@@ -174,6 +186,34 @@ def find_local_branch_for_remote(remote_name: str, remote_branch: str) -> str | 
                 return local_branch
 
     return None
+
+
+def build_checkout_pr_prompt(
+    pr_number: int,
+    current_org: str,
+    current_repo: str,
+    pr_author: str,
+    fork_owner: str,
+    fork_repo: str,
+    branch_name: str,
+    local_branch: str,
+    remote_name: str,
+    is_from_origin: bool,
+    user_prompt: str,
+) -> str:
+    """PR のブランチ由来情報を文脈として含むプロンプトを組み立てる"""
+    fork_info = (
+        ""
+        if is_from_origin
+        else f"このPRは {fork_owner}/{fork_repo} のforkから出されています。\n"
+    )
+    return f"""このworktreeは PR #{pr_number} ({current_org}/{current_repo}) のブランチをチェックアウトしたものです。
+PR作者: {pr_author}
+ブランチ: {local_branch} (リモート: {remote_name}/{branch_name})
+{fork_info}プッシュは `git push -u {remote_name} {local_branch}:{branch_name}` で行ってください。
+
+以下がタスクの詳細です:
+{user_prompt}"""
 
 
 def fetch_and_create_local_branch(remote_name: str, branch_name: str) -> bool:
