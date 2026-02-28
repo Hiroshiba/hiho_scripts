@@ -23,5 +23,6 @@ alias hiho_ai_code="${script_dir}/ai_code.py"
 alias hiho_ai_code_checkout_pr="${script_dir}/ai_code_checkout_pr.py"
 alias hiho_ai_code_counter_pr="${script_dir}/ai_code_counter_pr.py"
 alias hiho_get_github_template="${script_dir}/get_github_template.py"
+alias hiho_update_voicevox_pr_snapshots="${script_dir}/update_voicevox_pr_snapshots.py"
 
 unset script_dir

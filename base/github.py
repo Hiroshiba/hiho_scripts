@@ -2,6 +2,17 @@
 
 import json
 import subprocess
+from typing import TypedDict
+
+
+class PRDetail(TypedDict):
+    """PR の詳細情報を表す型"""
+
+    author: str
+    fork_owner: str
+    fork_repo: str
+    branch: str
+    maintainer_can_modify: bool
 
 
 def get_current_org_repo() -> tuple[str, str]:
@@ -54,6 +65,33 @@ def get_pr_fork_info(pr_number: int) -> tuple[str, str, str]:
     branch_name = data["headRefName"]
 
     return fork_owner, fork_repo, branch_name
+
+
+def get_pr_detail(pr_number: int) -> PRDetail:
+    """PR の author, fork 情報, maintainerCanModify を一括取得する"""
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "author,headRepositoryOwner,headRepository,headRefName,maintainerCanModify",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception(f"PR #{pr_number} の情報を取得できませんでした")
+
+    data = json.loads(result.stdout)
+    return PRDetail(
+        author=data["author"]["login"],
+        fork_owner=data["headRepositoryOwner"]["login"],
+        fork_repo=data["headRepository"]["name"],
+        branch=data["headRefName"],
+        maintainer_can_modify=data["maintainerCanModify"],
+    )
 
 
 def add_fork_remote(fork_owner: str, repo_name: str) -> str:
