@@ -16,6 +16,7 @@ source "${script_dir}/get_pr_review_thread_by_comment_id.bash"
 source "${script_dir}/git_remote_clean.bash"
 source "${script_dir}/new_branch.bash"
 source "${script_dir}/pbcopy_files.bash"
+source "${script_dir}/gh_api_read.bash"
 source "${script_dir}/show_diff_with_default_branch.bash"
 source "${script_dir}/stash_and_pr.bash"
 
