@@ -2,10 +2,10 @@
 
 オレオレ便利スクリプト
 
-## bashrc に同期する
+## インストール
 
-`~/.bashrc` と `~/.zshrc` に hiho_scripts の読み込み設定を追加します。
+`~/.local/bin/` に `hiho_*` コマンドを配置します。
 
 ```bash
-bash tools/sync_bashrc.sh
+bash tools/install.sh
 ```
