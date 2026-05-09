@@ -122,7 +122,7 @@ $pr_title
   gh pr create \
     --repo "$upstream_owner/$upstream_repo" \
     --base "$default_branch" \
-    --head "$my_owner:$my_repo:$branch_name" \
+    --head "$my_owner:$branch_name" \
     --title "$pr_title" \
     --body "$pr_body"
 

@@ -124,7 +124,7 @@ mergeしていただければ自動的に元のプルリクに反映されるは
   # プルリクエストを作成
   set +e
 
-  gh pr create --repo "$pr_owner/$my_repo" --head "$my_owner:$my_repo:$my_branch" --base "$pr_branch" --title "$pr_title" --body "$pr_body"
+  gh pr create --repo "$pr_owner/$my_repo" --head "$my_owner:$my_branch" --base "$pr_branch" --title "$pr_title" --body "$pr_body"
   if [[ $? -ne 0 ]]; then
     echo "Error: プルリクエストの作成に失敗しました。"
     return 1
