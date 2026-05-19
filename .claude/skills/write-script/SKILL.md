@@ -9,7 +9,7 @@ description: bash・Python スクリプトの作成・修正。「スクリプ�
    - Bash: `get_contributors.bash`, `get_pr_detail_comments_review_threads.bash`, `new_branch.bash`, `pbcopy_files.bash`, `stash_and_pr.bash`
    - Python: `ai_code.py`, `get_github_template.py`, `base/worktree_manager.py`, `base/pr_parser.py`
 2. 規約に従ってスクリプトを作成・修正する
-3. 新規作成時: `.bashrc` への登録 + 実行権限付与
+3. 新規作成時: `tools/install.sh` への登録 + 実行権限付与
 4. 動作確認
 
 ## 規約
@@ -77,22 +77,15 @@ if __name__ == "__main__":
 - 依存コマンド確認: `shutil.which(cmd)` で存在チェック
 - subprocess: `subprocess.run(..., capture_output=True, text=True)`
 
-## .bashrc への登録
+## tools/install.sh への登録
 
-新規作成時は `.bashrc` に追記し、実行権限を付与する。
+新規作成時は `tools/install.sh` の配列に追記し、`bash tools/install.sh` で `~/.local/bin/` に同期する。
 
 **Bash スクリプト:**
 
-```bash
-source "${script_dir}/ファイル名.bash"
-```
+`bash_names` 配列にファイル名（拡張子なし）を追加する。
 
 **Python スクリプト:**
 
-```bash
-alias hiho_スクリプト名="${script_dir}/スクリプト名.py"
-```
-
-```bash
-chmod +x スクリプト名.py
-```
+`python_cmds` にコマンド名 `hiho_スクリプト名`、`python_files` にファイル名 `スクリプト名.py` を追加する。
+スクリプトに実行権限を付与する: `chmod +x スクリプト名.py`

@@ -8,6 +8,8 @@ script_dir=$(
   pwd
 )
 
+echo "警告: hiho_scripts の .bashrc 経由読み込みは旧方式です。'bash tools/install.sh' で ~/.local/bin/ にコマンドを配置する新方式へ移行してください。" >&2
+
 source "${script_dir}/bash_run.bash"
 source "${script_dir}/counter_pr.bash"
 source "${script_dir}/get_contributors.bash"
