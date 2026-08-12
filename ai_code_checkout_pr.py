@@ -5,7 +5,6 @@ PR のブランチを worktree にチェックアウトして AI CLI を起動�
 """
 
 import argparse
-import json
 import re
 import subprocess
 import sys
@@ -19,7 +18,7 @@ from base.github import (
     add_fork_remote,
     get_current_org_repo,
     get_current_user,
-    get_pr_fork_info,
+    get_pr_detail,
 )
 from base.pr_parser import parse_pr_info, validate_org_repo
 from base.worktree_manager import (
@@ -57,10 +56,13 @@ def main() -> None:
     current_org, current_repo = get_current_org_repo()
     validate_org_repo(pr_info, current_org, current_repo)
 
-    pr_author = get_pr_author(pr_number)
+    pr_detail = get_pr_detail(pr_number)
+    pr_author = pr_detail["author"]
     current_user = get_current_user()
 
-    fork_owner, fork_repo, branch_name = get_pr_fork_info(pr_number)
+    fork_owner = pr_detail["fork_owner"]
+    fork_repo = pr_detail["fork_repo"]
+    branch_name = pr_detail["branch"]
 
     print(f"PR #{pr_number} のブランチ '{branch_name}' をチェックアウトします")
     print(f"PR 作者: {pr_author}")
@@ -148,20 +150,6 @@ def get_prompt_from_stdin(stdin_message: str) -> str:
         sys.exit(1)
 
     return prompt
-
-
-def get_pr_author(pr_number: int) -> str:
-    """PR の作者を取得する"""
-    result = subprocess.run(
-        ["gh", "pr", "view", str(pr_number), "--json", "author"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise Exception(f"PR #{pr_number} の情報を取得できませんでした")
-
-    data = json.loads(result.stdout)
-    return data["author"]["login"]
 
 
 def find_local_branch_for_remote(remote_name: str, remote_branch: str) -> str | None:

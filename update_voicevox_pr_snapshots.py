@@ -13,8 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 import subprocess
 
 from base.git import check_commands, fetch_remote_branch
-from base.github import add_fork_remote, get_current_user, get_pr_detail
-from base.pr_parser import PRInfo, parse_pr_info
+from base.github import GitHubClient, add_fork_remote, get_current_user, get_pr_detail
+from base.json import require_json_object, require_list, require_object, require_string
+from base.pr_parser import parse_pr_info
 
 
 def main() -> None:
@@ -23,14 +24,11 @@ def main() -> None:
     check_commands(["git", "gh"])
 
     pr_info = parse_pr_info(pr_url)
-    if not pr_info:
-        if pr_url.strip().isdigit():
-            pr_info = PRInfo(number=int(pr_url.strip()))
-        else:
-            print("エラー: PR URLまたはPR番号をパースできませんでした。", file=sys.stderr)
-            print("例: https://github.com/VOICEVOX/voicevox/pull/123", file=sys.stderr)
-            print("例: 123", file=sys.stderr)
-            sys.exit(1)
+    if pr_info is None:
+        print("エラー: PR URLまたはPR番号をパースできませんでした。", file=sys.stderr)
+        print("例: https://github.com/VOICEVOX/voicevox/pull/123", file=sys.stderr)
+        print("例: 123", file=sys.stderr)
+        sys.exit(1)
 
     pr_number = pr_info["number"]
     detail = get_pr_detail(pr_number)
@@ -220,22 +218,14 @@ def wait_for_workflow_completion(repo_owner: str, repo_name: str, run_id: int) -
 
 def get_branch_head_sha(repo_owner: str, repo_name: str, branch: str) -> str:
     """リモートブランチの HEAD SHA を取得する"""
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repo_owner}/{repo_name}/git/ref/heads/{branch}",
-            "--jq",
-            ".object.sha",
-        ],
-        capture_output=True,
-        text=True,
+    reference = require_json_object(
+        GitHubClient().get_json(
+            f"repos/{repo_owner}/{repo_name}/git/ref/heads/{branch}"
+        ),
+        "ブランチ情報",
     )
-    if result.returncode != 0:
-        raise Exception(
-            f"ブランチ '{branch}' のHEAD SHAの取得に失敗しました: {result.stderr.strip()}"
-        )
-    return result.stdout.strip()
+    git_object = require_object(reference, "object", "ブランチ情報")
+    return require_string(git_object, "sha", "ブランチ情報")
 
 
 def validate_commit_advanced(
@@ -250,21 +240,17 @@ def validate_commit_advanced(
         )
         return True
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repo_owner}/{repo_name}/commits/{new_head_sha}",
-            "--jq",
-            ".parents[0].sha",
-        ],
-        capture_output=True,
-        text=True,
+    commit = require_json_object(
+        GitHubClient().get_json(
+            f"repos/{repo_owner}/{repo_name}/commits/{new_head_sha}"
+        ),
+        "コミット情報",
     )
-    if result.returncode != 0:
-        raise Exception(f"コミット情報の取得に失敗しました: {result.stderr.strip()}")
-
-    parent_sha = result.stdout.strip()
+    parents = require_list(commit, "parents", "コミット情報")
+    if len(parents) == 0:
+        raise RuntimeError("コミットに親がありません。")
+    parent = require_json_object(parents[0], "コミットの親")
+    parent_sha = require_string(parent, "sha", "コミットの親")
     if parent_sha != old_head_sha:
         print(
             f"エラー: 新しいコミット ({new_head_sha[:7]}) の親が期待するSHA ({old_head_sha[:7]}) と一致しません。",

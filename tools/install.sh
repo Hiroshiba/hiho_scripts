@@ -27,6 +27,7 @@ python_cmds=(
   hiho_ai_code_counter_pr
   hiho_ai_commit
   hiho_get_github_template
+  hiho_merge_pr_with_merge_commit
   hiho_update_voicevox_pr_snapshots
   hiho_generate_password
 )
@@ -37,6 +38,7 @@ python_files=(
   ai_code_counter_pr.py
   ai_commit.py
   get_github_template.py
+  merge_pr_with_merge_commit.py
   update_voicevox_pr_snapshots.py
   generate_password.py
 )
