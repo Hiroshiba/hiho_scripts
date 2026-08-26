@@ -18,9 +18,19 @@ def get_repo_root() -> str:
 
 def get_worktree_path(branch_name: str) -> Path:
     """ブランチ名から worktree のパスを生成する"""
-    repo_root = get_repo_root()
-    worktrees_dir = Path(f"{repo_root}.worktrees")
-    return worktrees_dir / branch_name
+    result = subprocess.run(
+        [
+            "git",
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise Exception("Git共通ディレクトリを取得できませんでした")
+    return Path(result.stdout.strip()) / "hiho-worktrees" / branch_name
 
 
 def worktree_exists(worktree_path: Path) -> bool:
