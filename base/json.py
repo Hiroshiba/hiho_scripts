@@ -38,6 +38,16 @@ def require_string(data: dict[str, object], key: str, context: str) -> str:
     return value
 
 
+def get_optional_string(data: dict[str, object], key: str, context: str) -> str | None:
+    """任意項目を文字列として取得する"""
+    if key not in data:
+        return None
+    value = data[key]
+    if not isinstance(value, str):
+        raise RuntimeError(f"{context}の {key} が文字列ではありません。")
+    return value
+
+
 def require_nullable_string(
     data: dict[str, object], key: str, context: str
 ) -> str | None:
